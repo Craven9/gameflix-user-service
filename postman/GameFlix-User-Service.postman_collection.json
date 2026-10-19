@@ -1,0 +1,427 @@
+{
+  "info": {
+    "_postman_id": "860b92eb-e45f-4a38-b2f2-28878e3d48d0",
+    "name": "GameFlix User Service - Module 4",
+    "description": "Run in order (Collection Runner works). Covers the six required cases plus 400 and unknown-email checks.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 Register - success (201)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "register"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"username\": \"{{username}}\",\n  \"firstName\": \"Cole\",\n  \"lastName\": \"Tester\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// New unique email/username each full run, so the collection can be re-run.",
+              "const n = Date.now();",
+              "pm.collectionVariables.set('email', `cole.test+${n}@gameflix.dev`);",
+              "pm.collectionVariables.set('username', `cole_${n}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+              "const json = pm.response.json();",
+              "pm.test('Returns userId and email', () => { pm.expect(json.userId).to.be.a('number'); pm.expect(json.email).to.eql(pm.collectionVariables.get('email')); });",
+              "pm.test('No password or hash in response', () => { const raw = pm.response.text(); pm.expect(raw).to.not.include('password'); pm.expect(raw).to.not.include('$2a$'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Register - duplicate email (409)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "register"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"username\": \"{{username}}_2\",\n  \"firstName\": \"Cole\",\n  \"lastName\": \"Tester\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 409 Conflict', () => pm.response.to.have.status(409));",
+              "pm.test('Message mentions email', () => pm.expect(pm.response.json().message).to.include('Email'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Register - invalid input (400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "register"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"not-an-email\",\n  \"password\": \"short\",\n  \"username\": \"\",\n  \"firstName\": \"\",\n  \"lastName\": \"\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));",
+              "pm.test('Lists field errors', () => pm.expect(pm.response.json().fieldErrors).to.have.property('email'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Login - success (200 + token)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test('Returns a JWT (3 dot-separated parts)', () => pm.expect(json.accessToken.split('.').length).to.eql(3));",
+              "pm.collectionVariables.set('token', json.accessToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Login - wrong password (401)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"WrongPassword999!\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));",
+              "pm.test('Generic message', () => pm.expect(pm.response.json().message).to.eql('Invalid email or password'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Login - unknown email (401, same message)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"nobody.here@gameflix.dev\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));",
+              "pm.test('Same generic message as wrong password', () => pm.expect(pm.response.json().message).to.eql('Invalid email or password'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Me - valid token (200)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Returns my own profile', () => pm.expect(pm.response.json().email).to.eql(pm.collectionVariables.get('email')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Me - missing token (401)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Me - tampered token (401)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tamperedToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Change the first character of the signature (3rd part) of the real token.",
+              "// The header and payload are untouched, so only the signature check can catch it.",
+              "const parts = pm.collectionVariables.get('token').split('.');",
+              "parts[2] = (parts[2][0] === 'A' ? 'B' : 'A') + parts[2].slice(1);",
+              "pm.collectionVariables.set('tamperedToken', parts.join('.'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "password",
+      "value": "ThrowawayPass123!"
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "username",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "tamperedToken",
+      "value": ""
+    }
+  ]
+}

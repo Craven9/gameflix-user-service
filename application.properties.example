@@ -1,0 +1,18 @@
+# ---------------------------------------------------------------------------
+# Copy this file to:  src/main/resources/application-local.properties
+# and fill in real values. That file is listed in .gitignore and must never be committed.
+#
+# Alternative: set environment variables instead of using the file:
+#   SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD, APP_JWT_SECRET
+# ---------------------------------------------------------------------------
+
+# allowPublicKeyRetrieval/useSSL=false: needed for a new MySQL 8 user on a local machine
+# without SSL configured. Local development only.
+spring.datasource.url=jdbc:mysql://localhost:3306/gameflix_users?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+spring.datasource.username=gameflix_app
+spring.datasource.password=CHANGE_ME_DB_PASSWORD
+
+# Base64 encoding of at least 32 random bytes (256 bits). Generate one with:
+#   macOS/Linux/Git Bash:  openssl rand -base64 32
+#   PowerShell:            $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
+app.jwt.secret=CHANGE_ME_BASE64_32_BYTE_SECRET
