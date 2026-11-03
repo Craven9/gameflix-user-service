@@ -143,6 +143,40 @@ Cross-service references such as `reviews.user_id` and `reviews.game_id` are now
 
 I also added attributes my own API contracts already required but the ERD didn't store. For `users`: `password_hash` (VARCHAR(255)), `first_name`, `last_name`, `avatar_url`, `bio`, `role`, `enabled`, `last_login_at`, and `updated_at`, plus a unique constraint on `username`. Finally, the assignment's routes (`/api/auth/register`, `/api/auth/login`, `/api/users/me`) replace my original `/users/register`, `/users/login`, and `/users/:userId`. `/me` is safer than `/users/:userId` because the user comes from the signed token, so changing an ID in the URL can't expose someone else's profile.
 
+## Run with Docker
+Runs the service and a MySQL 8.0 database in separate containers with Docker Compose.
+
+**Prerequisites:** Docker Desktop (engine running), JDK 21.
+
+**Backup:** the working pre-Docker version of this project is preserved in Git at commit `d4713a8`.
+
+1. Copy `.env.example` to `.env` and fill in classroom-only values, including a Base64 JWT secret (32+ bytes). `.env` is git-ignored.
+2. Build the jar:
+   ```
+   .\mvnw.cmd clean package -DskipTests     (Windows)
+   ./mvnw clean package -DskipTests         (macOS/Linux)
+   ```
+3. Start both containers:
+   ```
+   docker compose up --build -d
+   docker compose ps
+   ```
+   MySQL should be `healthy` and the app `Up`. Compose waits for MySQL's health check before starting the app.
+4. Test with the Postman collection against `http://localhost:8080` (register → login → `/api/users/me`). All 17 tests pass against the Dockerized app.
+5. Check the data:
+   ```
+   docker compose exec mysql mysql -u<MYSQL_USER> -p <MYSQL_DATABASE>
+   SELECT user_id, email, username FROM users;
+   ```
+6. Stop: `docker compose down` (keeps data). `docker compose down -v` deletes the database volume.
+
+**Notes**
+- Inside Docker the app reaches MySQL at `mysql:3306` (the Compose service name); from the host it's `127.0.0.1:3307`.
+- `ddl-auto` stays `none` instead of `update`. Instead, `db/schema.sql` is mounted into `/docker-entrypoint-initdb.d/`, so MySQL creates the `users` table on first startup.
+- The app runs with the `docker` profile, so it ignores `application-local.properties` and gets its DB credentials and JWT secret from environment variables set in `compose.yaml`.
+- The Dockerfile uses `eclipse-temurin:21-jre` to match the project's Java 21 target.
+- After changing Java code, rebuild the jar before `docker compose up --build`, since the Dockerfile copies the jar from `target/`.
+
 ## Use of AI assistance
 
 I used Claude (Anthropic) throughout this assignment:
