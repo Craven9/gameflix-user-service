@@ -25,3 +25,29 @@ jobs:
 
     - name: Build Docker image
       run: docker build -t gameflix-backend .
+
+    # ---------- Supply-chain security (Module 5) ----------
+
+    - name: Generate SBOM (Syft, CycloneDX)
+      run: |
+        docker run --rm \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -v ${{ github.workspace }}:/out \
+          anchore/syft:latest gameflix-backend:latest \
+          -o cyclonedx-json=/out/gameflix-sbom.cdx.json
+
+    - name: Upload SBOM as build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: gameflix-sbom
+        path: gameflix-sbom.cdx.json
+
+    - name: Vulnerability report (HIGH + CRITICAL)
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/work aquasec/trivy:latest \
+          sbom /work/gameflix-sbom.cdx.json --severity HIGH,CRITICAL --exit-code 0
+
+    - name: Security gate - fail build on CRITICAL
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/work aquasec/trivy:latest \
+          sbom /work/gameflix-sbom.cdx.json --severity CRITICAL --exit-code 1
