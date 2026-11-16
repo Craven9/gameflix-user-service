@@ -1,8 +1,10 @@
-# GameFlix User Service: Login & Registration (Module 4)
+# GameFlix User Service
+
+Registration, login, and JWT-protected profile for GameFlix. Built in Module 4, containerized and given a CI/CD pipeline with supply-chain checks in Module 5, and unit tested with JUnit 5.
 
 A Spring Boot service that registers users, hashes their passwords with bcrypt, issues a signed JWT on login, and uses that token to protect `GET /api/users/me`. Users are stored in MySQL.
 
-**Stack:** Java 21 (compile target; also tested running on JDK 24), Spring Boot 3.5, Spring Security 6 (OAuth2 Resource Server for JWT), Spring Data JPA, MySQL 8.
+**Stack:** Java 21 (compile target; also tested running on JDK 24), Spring Boot 3.5, Spring Security 6 (OAuth2 Resource Server for JWT), Spring Data JPA, MySQL 8, JUnit 5 + Mockito, Docker Compose, GitHub Actions.
 
 ## Endpoints
 
@@ -113,7 +115,33 @@ Only `app.cors.allowed-origin` (`http://localhost:5173`, my planned front-end de
 
 CSRF is disabled because the API is stateless and the token travels in the `Authorization` header, not in a cookie. The browser can't attach it automatically to a forged cross-site request.
 
-## Test evidence
+## Unit tests (JUnit 5)
+
+The project uses **JUnit 5** (Spring Boot 3.x) through `spring-boot-starter-test`, which also brings in Mockito.
+
+**Test class:** [`src/test/java/com/gameflix/userservice/auth/AuthServiceTest.java`](src/test/java/com/gameflix/userservice/auth/AuthServiceTest.java)
+
+These are unit tests for `AuthService`, the service that holds the registration and login logic. `UserRepository` and `TokenService` are mocked with Mockito, so the tests don't need MySQL or a JWT secret and run anywhere, including in the GitHub Actions pipeline. The password encoder is a real `BCryptPasswordEncoder` (cost 4 to keep the tests fast), so hashing is actually exercised instead of faked.
+
+| Test | What it checks |
+|---|---|
+| `register_ShouldHashPasswordAndNormalizeEmail` | Email is trimmed and lowercased, username trimmed, and the stored value is a bcrypt hash that matches the password, never the plain text |
+| `register_DuplicateUsername_ShouldThrowDuplicateAccountException` | A `uk_users_username` constraint violation becomes `"Username is already taken"` (409) |
+| `register_PasswordOver72Bytes_ShouldBeRejected` | Passwords over bcrypt's 72-byte limit are rejected and nothing is saved |
+| `login_WrongPassword_ShouldThrowGenericError` | Wrong password gives the generic `"Invalid email or password"` and no token is issued |
+| `login_UnknownEmail_ShouldThrowSameGenericError` | An unknown email gets the exact same message, so emails can't be enumerated |
+| `login_ValidCredentials_ShouldReturnBearerToken` | Correct login returns a Bearer token with the right lifetime and records `lastLoginAt` |
+
+**Run them:**
+```
+.\mvnw.cmd test        (Windows)
+./mvnw test            (macOS/Linux)
+```
+Result: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0` and BUILD SUCCESS.
+
+I used Mockito unit tests instead of `@SpringBootTest` on purpose. `@SpringBootTest` starts the whole application, which needs a running MySQL database and the JWT secret just to load. That would make the tests fail in CI and on any machine without the local setup, even when the service logic is correct.
+
+## Test evidence (Postman)
 
 Postman collection: `postman/GameFlix-User-Service.postman_collection.json`. Run the requests in order (or use the Collection Runner). Each request has automated checks on the status code and body.
 
@@ -151,10 +179,10 @@ Runs the service and a MySQL 8.0 database in separate containers with Docker Com
 **Backup:** the working pre-Docker version of this project is preserved in Git at commit `d4713a8`.
 
 1. Copy `.env.example` to `.env` and fill in classroom-only values, including a Base64 JWT secret (32+ bytes). `.env` is git-ignored.
-2. Build the jar:
+2. Build the jar (this also runs the unit tests; add `-DskipTests` to skip them):
    ```
-   .\mvnw.cmd clean package -DskipTests     (Windows)
-   ./mvnw clean package -DskipTests         (macOS/Linux)
+   .\mvnw.cmd clean package     (Windows)
+   ./mvnw clean package         (macOS/Linux)
    ```
 3. Start both containers:
    ```
@@ -177,11 +205,28 @@ Runs the service and a MySQL 8.0 database in separate containers with Docker Com
 - The Dockerfile uses `eclipse-temurin:21-jre` to match the project's Java 21 target.
 - After changing Java code, rebuild the jar before `docker compose up --build`, since the Dockerfile copies the jar from `target/`.
 
+## CI/CD pipeline and supply-chain security
+
+`.github/workflows/ci.yml` runs on every push and pull request to `main`:
+
+1. Check out the code and set up JDK 21
+2. **Build with Maven** (`mvn clean package`), which compiles the code and runs the JUnit tests
+3. **Build the Docker image**
+4. **Generate an SBOM** with Syft (CycloneDX JSON) from the built image
+5. **Upload the SBOM** as a build artifact, so every build has a record of exactly what it shipped
+6. **Vulnerability report:** Trivy lists all HIGH and CRITICAL findings (never fails the build)
+7. **Security gate:** Trivy fails the build on any CRITICAL finding
+
+The SBOM and scan steps run after the image is built, because the image is what actually ships, including base-image packages that a source-only scan would miss. They run before anything would be pushed or deployed, so a vulnerable image can't go anywhere.
+
+**Current status:** the security gate fails the build on purpose. The image has 10 CRITICAL findings, all in libraries pulled in transitively by Spring Boot 3.5.6 (embedded Tomcat, `spring-webmvc`, `spring-security-web`). Upgrading Spring Boot and rescanning is the next step to get the pipeline green.
+
 ## Use of AI assistance
 
 I used Claude (Anthropic) throughout this assignment:
 
 - **Code and project files:** Claude generated the Spring Boot source code (entity, repository, controllers, `AuthService`, `TokenService`, `SecurityConfig`, exception handler), the `schema.sql` and `setup.sql` scripts, the Postman collection, and a first draft of this README.
+- **Module 5 (Docker, CI/CD, testing):** Claude helped me write the Dockerfile and `compose.yaml`, add the SBOM and Trivy steps to the pipeline, and write `AuthServiceTest`. The assignment's example tested a `MovieService`, which this service doesn't have, so the tests were written against my actual `AuthService` logic instead. I ran `mvn test` myself and confirmed all 6 tests pass.
 - **Design:** Claude helped me revise my Module 3 ERD into a database-per-service design and add the missing `users` attributes.
 - **Setup and troubleshooting:** I used Claude to walk me through the steps I got stuck on, including running the SQL scripts in MySQL Workbench (and getting my query tab connected), setting up the local properties file and JWT secret, adding the Maven wrapper, and running the Postman tests.
 
